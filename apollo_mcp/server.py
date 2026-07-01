@@ -229,6 +229,7 @@ def search_organizations(
     organization_domains: list[str] | None = None,
     organization_locations: list[str] | None = None,
     num_employees_ranges: list[str] | None = None,
+    keyword_tags: list[str] | None = None,
     organization_name: str | None = None,
     page: int = 1,
     per_page: int = 10,
@@ -237,8 +238,11 @@ def search_organizations(
 
     Args:
         organization_domains: Company domains, e.g. ["stripe.com"].
-        organization_locations: HQ locations, e.g. ["United States", "London"].
-        num_employees_ranges: Headcount bands, e.g. ["1,10", "11,50", "51,200"].
+        organization_locations: HQ locations, e.g. ["United States",
+            "New York, US", "Illinois, US"].
+        num_employees_ranges: Headcount bands, e.g. ["11,20", "21,50", "51,100"].
+        keyword_tags: Company keywords; matches accounts whose industry tags or
+            description contain ANY of these, e.g. ["freight", "trucking"].
         organization_name: Filter by company name.
         page: 1-based page number.
         per_page: Results per page (max 100).
@@ -253,6 +257,8 @@ def search_organizations(
         body["organization_locations"] = organization_locations
     if num_employees_ranges:
         body["organization_num_employees_ranges"] = num_employees_ranges
+    if keyword_tags:
+        body["q_organization_keyword_tags"] = keyword_tags
     if organization_name:
         body["q_organization_name"] = organization_name
 
