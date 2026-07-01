@@ -1,0 +1,7 @@
+# Anthropic SDK with MCP helpers (async_mcp_tool + tool_runner). Pulls in `mcp`.
+anthropic[mcp]>=0.49
+# MCP framework (FastMCP) + stdio client. Also pulled by anthropic[mcp]; listed
+# explicitly because apollo_mcp/server.py imports it directly.
+mcp>=1.4
+# HTTP client for the Apollo REST calls made by the MCP server.
+httpx>=0.27

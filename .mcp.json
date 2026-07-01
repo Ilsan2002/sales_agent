@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "apollo": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "apollo_mcp.server"],
+      "env": {
+        "APOLLO_API_KEY": "${APOLLO_API_KEY}"
+      }
+    }
+  }
+}
