@@ -97,11 +97,26 @@ def _slim_person(person: dict[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
-def _slim_org(org: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Trim a verbose Apollo organization record to the useful fields."""
+def _phone_number(org: dict[str, Any]) -> str | None:
+    primary = org.get("primary_phone")
+    if isinstance(primary, dict) and primary.get("number"):
+        return primary["number"]
+    return org.get("sanitized_phone") or org.get("phone")
+
+
+def _slim_org(
+    org: dict[str, Any] | None, detailed: bool = False
+) -> dict[str, Any] | None:
+    """Trim a verbose Apollo organization record to the useful fields.
+
+    With ``detailed=True`` (used by enrichment) include the richer firmographics
+    Apollo returns — revenue, founding year, tech stack, keywords, headcount
+    growth, and phone. Search results stay lean (``detailed=False``) to keep
+    list responses compact.
+    """
     if not org:
         return None
-    return {
+    slim: dict[str, Any] = {
         "id": org.get("id"),
         "name": org.get("name"),
         "domain": org.get("primary_domain") or org.get("website_url"),
@@ -111,6 +126,27 @@ def _slim_org(org: dict[str, Any] | None) -> dict[str, Any] | None:
         "linkedin_url": org.get("linkedin_url"),
         "short_description": org.get("short_description"),
     }
+    if detailed:
+        slim.update(
+            {
+                "founded_year": org.get("founded_year"),
+                "annual_revenue": org.get("annual_revenue_printed")
+                or org.get("annual_revenue"),
+                "market_cap": org.get("market_cap"),
+                "publicly_traded_symbol": org.get("publicly_traded_symbol"),
+                "phone": _phone_number(org),
+                "keywords": (org.get("keywords") or [])[:20],
+                "technologies": (org.get("technology_names") or [])[:25],
+                "headcount_growth": {
+                    "6mo": org.get("organization_headcount_six_month_growth"),
+                    "12mo": org.get("organization_headcount_twelve_month_growth"),
+                    "24mo": org.get("organization_headcount_twenty_four_month_growth"),
+                },
+                "naics_codes": org.get("naics_codes"),
+                "sic_codes": org.get("sic_codes"),
+            }
+        )
+    return slim
 
 
 def _clamp_per_page(per_page: int) -> int:
@@ -277,10 +313,13 @@ def enrich_organization(domain: str) -> str:
         domain: Company domain, e.g. "apollo.io".
 
     Returns:
-        JSON string with the trimmed organization, or {"organization": null}.
+        JSON string with the enriched organization (firmographics plus revenue,
+        founding year, tech stack, keywords, headcount growth, and phone), or
+        {"organization": null}.
     """
     data = _request("GET", "/organizations/enrich", params={"domain": domain})
-    return json.dumps({"organization": _slim_org(data.get("organization"))}, indent=2)
+    org = _slim_org(data.get("organization"), detailed=True)
+    return json.dumps({"organization": org}, indent=2)
 
 
 @mcp.tool()
