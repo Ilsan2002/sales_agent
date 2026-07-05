@@ -20,7 +20,7 @@ agent.
 
 | Tool | Apollo endpoint | Purpose |
 | --- | --- | --- |
-| `search_people` | `POST /mixed_people/search` | Find prospects by title, seniority, location, employer domain |
+| `search_people` | `POST /mixed_people/api_search` | Find net-new prospects by title, seniority, location, employer domain (free previews) |
 | `enrich_person` | `POST /people/match` | Verified contact + firmographics for one person |
 | `search_organizations` | `POST /mixed_companies/search` | Find accounts by domain, location, headcount |
 | `enrich_organization` | `GET /organizations/enrich` | Firmographics for one company by domain |
@@ -28,17 +28,21 @@ agent.
 
 Auth is via the `X-Api-Key` header (Apollo's scheme), read from `APOLLO_API_KEY`.
 
-### Plan-gated endpoints
+### People Search: use the API endpoint + a master key
 
-Apollo gates some API endpoints by plan tier, independent of whether your key is
-valid. On the **Basic** plan, API access covers enrichment (`enrich_person`,
-`enrich_organization`), organization search (`search_organizations`), and job
-postings (`organization_job_postings`) — but **People Search** (`search_people`,
-`POST /mixed_people/search`) is **not** included and returns `403`
-`API_INACCESSIBLE`. To use it, enable API access under **Apollo > Settings >
-Integrations > API**, or upgrade the plan. This is an account entitlement, so
-minting a new API key on the same plan does not change endpoint access. The
-server turns this 403 into an explanatory error rather than a raw HTTP dump.
+Apollo exposes two people-search paths, and picking the wrong one looks like a
+plan limitation when it isn't. The server uses the official API endpoint
+**`POST /mixed_people/api_search`** — *not* `/mixed_people/search`, which is
+Apollo's internal web-app endpoint and returns `403 API_INACCESSIBLE` even on
+paid plans. People Search works on the **Basic** plan, with two things to know:
+
+- It requires a **master API key** — create one under **Apollo > Settings >
+  Integrations > API** (a non-master key returns `403 API_INACCESSIBLE`, which
+  the server surfaces as an explanatory error rather than a raw HTTP dump).
+- Results are **free previews** (no credits): first name, obfuscated last name,
+  title, employer, and email/phone availability flags. Reveal a prospect's real
+  email and full name by passing their id (or name + domain) to `enrich_person`,
+  which **does** consume credits.
 
 ## Setup
 

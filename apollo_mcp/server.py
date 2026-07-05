@@ -69,17 +69,19 @@ def _request(
         except Exception:
             error_code = None
         if error_code == "API_INACCESSIBLE":
-            # The key is valid (that would be 401) but the plan doesn't grant
-            # API access to this endpoint. People Search (/mixed_people/search)
-            # is the common case — it is gated above the Basic plan.
+            # The key authenticated (an invalid key returns 401). API_INACCESSIBLE
+            # means this key is not permitted to call this endpoint. The usual
+            # cause is People Search, which requires a *master* API key — and note
+            # the official path is /mixed_people/api_search, not the internal
+            # /mixed_people/search (which 403s even on paid plans).
             raise RuntimeError(
-                f"Apollo endpoint {path} is not accessible on your Apollo plan's "
-                "API entitlements. Some endpoints — notably People Search "
-                "(/mixed_people/search) — are gated to higher tiers and are not "
-                "included with API enrichment on the Basic plan. Enable API access "
-                "for it under Apollo > Settings > Integrations > API, or upgrade the "
-                "plan. This is a plan/account entitlement, so minting a new API key "
-                f"does not change it. (Apollo said: {detail})"
+                f"Apollo endpoint {path} returned API_INACCESSIBLE. The key "
+                "authenticated (otherwise this would be 401), but it is not "
+                "permitted for this endpoint. People Search requires a *master* "
+                "API key — create or switch to one under Apollo > Settings > "
+                "Integrations > API (enable the 'master key' option). Also ensure "
+                "you are calling /mixed_people/api_search, not /mixed_people/search "
+                f"(the internal web endpoint). (Apollo said: {detail})"
             )
         raise RuntimeError(f"Apollo API {resp.status_code} on {path}: {detail}")
     return resp.json()
@@ -170,6 +172,35 @@ def _clamp_per_page(per_page: int) -> int:
     return max(1, min(per_page, MAX_PER_PAGE))
 
 
+def _slim_search_person(person: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Trim a People Search (``api_search``) *preview* record.
+
+    The ``/mixed_people/api_search`` endpoint returns net-new prospects without
+    spending credits, so records are partially obfuscated: a first name, an
+    obfuscated last name, title, employer, and boolean availability flags — but
+    no revealed email or phone. Pass the person's ``id`` (or first name +
+    employer domain) to :func:`enrich_person` to reveal the full contact record;
+    that call consumes credits.
+    """
+    if not person:
+        return None
+    org = person.get("organization") or {}
+    return {
+        "id": person.get("id"),
+        "first_name": person.get("first_name"),
+        "last_name": person.get("last_name") or person.get("last_name_obfuscated"),
+        "title": person.get("title"),
+        "organization": {
+            "id": org.get("id"),
+            "name": org.get("name"),
+            "domain": org.get("primary_domain") or org.get("website_url"),
+        },
+        "email_available": bool(person.get("has_email")),
+        "phone_available": bool(person.get("has_direct_phone")),
+        "enriched": False,
+    }
+
+
 @mcp.tool()
 def search_people(
     person_titles: list[str] | None = None,
@@ -182,9 +213,14 @@ def search_people(
     page: int = 1,
     per_page: int = 10,
 ) -> str:
-    """Search Apollo's database for people (prospects) matching an ICP.
+    """Search Apollo for people (net-new prospects) matching an ICP.
 
-    Use this to build a lead list. Combine filters to narrow results.
+    Uses Apollo's official People Search API (``/mixed_people/api_search``),
+    which requires a *master* API key. Results are FREE (no credits) but are
+    previews: first name, obfuscated last name, title, employer, and email/phone
+    availability flags. To reveal a prospect's real email and full name, pass
+    their id (or first_name + organization domain) to :func:`enrich_person`,
+    which consumes credits. Combine filters to narrow results.
 
     Args:
         person_titles: Job titles to match, e.g. ["VP of Sales", "Head of Growth"].
@@ -199,7 +235,8 @@ def search_people(
         per_page: Results per page (max 100).
 
     Returns:
-        JSON string with a trimmed "people" list and "pagination" metadata.
+        JSON string with a "people" preview list, "total_entries", and a "note"
+        on how to enrich previews into full contact records.
     """
     body: dict[str, Any] = {"page": page, "per_page": _clamp_per_page(per_page)}
     if person_titles:
@@ -217,15 +254,26 @@ def search_people(
     if email_status:
         body["contact_email_status"] = email_status
 
-    data = _request("POST", "/mixed_people/search", json_body=body)
-    people = [_slim_person(p) for p in data.get("people", [])]
+    data = _request("POST", "/mixed_people/api_search", json_body=body)
+    people = [_slim_search_person(p) for p in data.get("people", [])]
     return json.dumps(
-        {"people": people, "pagination": data.get("pagination", {})}, indent=2
+        {
+            "people": people,
+            "total_entries": data.get("total_entries"),
+            "note": (
+                "People Search previews are free but obfuscated (no revealed "
+                "email or last name). Call enrich_person on a person's id or "
+                "first_name + organization domain to reveal contact data "
+                "(consumes credits)."
+            ),
+        },
+        indent=2,
     )
 
 
 @mcp.tool()
 def enrich_person(
+    person_id: str | None = None,
     first_name: str | None = None,
     last_name: str | None = None,
     name: str | None = None,
@@ -238,10 +286,14 @@ def enrich_person(
 ) -> str:
     """Enrich a single person, returning verified contact + firmographic data.
 
-    Provide whatever identifiers you have (the more, the better the match):
-    an email, a name plus a company domain, or a LinkedIn URL.
+    Provide whatever identifiers you have (the more, the better the match): an
+    Apollo person_id (e.g. from a search_people preview), an email, a name plus a
+    company domain, or a LinkedIn URL. This reveals the real email/name that
+    search_people leaves obfuscated, and consumes credits.
 
     Args:
+        person_id: Apollo person id, e.g. from a search_people result — the most
+            reliable identifier for revealing that exact prospect.
         first_name: Person's first name.
         last_name: Person's last name.
         name: Full name (alternative to first_name/last_name).
@@ -261,6 +313,7 @@ def enrich_person(
         "reveal_phone_number": reveal_phone_number,
     }
     candidates = {
+        "id": person_id,
         "first_name": first_name,
         "last_name": last_name,
         "name": name,
