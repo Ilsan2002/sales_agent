@@ -64,6 +64,23 @@ def _request(
     if resp.status_code >= 400:
         # Surface a compact, actionable error the model can reason about.
         detail = resp.text[:500]
+        try:
+            error_code = resp.json().get("error_code")
+        except Exception:
+            error_code = None
+        if error_code == "API_INACCESSIBLE":
+            # The key is valid (that would be 401) but the plan doesn't grant
+            # API access to this endpoint. People Search (/mixed_people/search)
+            # is the common case — it is gated above the Basic plan.
+            raise RuntimeError(
+                f"Apollo endpoint {path} is not accessible on your Apollo plan's "
+                "API entitlements. Some endpoints — notably People Search "
+                "(/mixed_people/search) — are gated to higher tiers and are not "
+                "included with API enrichment on the Basic plan. Enable API access "
+                "for it under Apollo > Settings > Integrations > API, or upgrade the "
+                "plan. This is a plan/account entitlement, so minting a new API key "
+                f"does not change it. (Apollo said: {detail})"
+            )
         raise RuntimeError(f"Apollo API {resp.status_code} on {path}: {detail}")
     return resp.json()
 

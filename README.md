@@ -28,6 +28,18 @@ agent.
 
 Auth is via the `X-Api-Key` header (Apollo's scheme), read from `APOLLO_API_KEY`.
 
+### Plan-gated endpoints
+
+Apollo gates some API endpoints by plan tier, independent of whether your key is
+valid. On the **Basic** plan, API access covers enrichment (`enrich_person`,
+`enrich_organization`), organization search (`search_organizations`), and job
+postings (`organization_job_postings`) — but **People Search** (`search_people`,
+`POST /mixed_people/search`) is **not** included and returns `403`
+`API_INACCESSIBLE`. To use it, enable API access under **Apollo > Settings >
+Integrations > API**, or upgrade the plan. This is an account entitlement, so
+minting a new API key on the same plan does not change endpoint access. The
+server turns this 403 into an explanatory error rather than a raw HTTP dump.
+
 ## Setup
 
 ```bash
