@@ -79,6 +79,18 @@ Phone numbers via `/people/match` need `reveal_phone_number=true` **and** a
 webhook (can take minutes). It draws `direct_dial_credit`, not lead credits. The
 *company* phone, by contrast, comes free inside a normal person/org enrichment.
 
+⚠️ **Gotcha:** passing `reveal_phone_number=true` **without** a `webhook_url` makes the
+whole `/people/match` response come back **empty** (email, name, everything null) — a
+silent failure. Omit the flag unless you have a webhook endpoint. `reveal_personal_emails`
+is safe to pass but usually returns `[]` for B2B contacts (Apollo has work emails, not personal).
+
+### Credit balances aren't always in the API
+
+On some plans the credit/usage endpoints (`/usage_stats/credit_usage_stats`,
+`/usage_stats/api_usage_stats`) return **404** and `users/api_profile` omits credit fields —
+credits are then visible only in the Apollo UI (**Settings → Credits**). Don't rely on an
+API credit-balance check; track spend yourself or read the UI.
+
 ## Rate limits
 
 Fixed-window, **per endpoint**, per minute / hour / day, and they scale with your plan.

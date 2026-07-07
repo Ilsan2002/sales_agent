@@ -45,6 +45,9 @@ Reveal flags:
 - `reveal_personal_emails` (bool) — synchronous, may consume credits
 - `reveal_phone_number` (bool) — **async**, **requires `webhook_url`**; results POSTed to
   the webhook after Apollo verifies (minutes). Draws `direct_dial_credit`.
+  ⚠️ Passing `reveal_phone_number=true` **without** a `webhook_url` returns an **empty
+  person record** (silent — email/name/everything comes back null). Omit the flag unless
+  you have a webhook you control.
 - `run_waterfall_email`, `run_waterfall_phone` — cascade across Apollo's sources
 
 Response: `person{ name, title, email, email_status, linkedin_url, city/state/country,
