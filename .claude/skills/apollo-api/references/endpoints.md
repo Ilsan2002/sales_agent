@@ -115,6 +115,22 @@ Create/update/list/manage operations never consume credits: contacts, accounts, 
 sequences (`emailer_campaigns`), tasks, calls, email accounts, users, custom fields.
 These are how the hosted connector drives the *engagement/delivery* layer.
 
+### Which engagement endpoints an API key can actually reach (measured)
+
+| Endpoint | API-key access |
+|---|---|
+| `POST /contacts`, `/contacts/search` | ✅ open |
+| `POST /emailer_campaigns/{id}/add_contact_ids` | ✅ open |
+| `POST /emailer_messages` (one-off send) | ✅ open (422 param validation reached, not 403) |
+| `POST /emailer_campaigns` (create) / `PUT …/update` | ❌ 403 API_INACCESSIBLE (use hosted connector/UI) |
+| `GET /emailer_campaigns/{id}` (show) | ❌ 403 API_INACCESSIBLE |
+| `PUT/PATCH /email_accounts/{id}` (update mailbox) | ❌ 403 API_INACCESSIBLE |
+
+**Mailbox daily send limit (`email_daily_threshold`) is UI-only.** A freshly connected
+mailbox starts at `0` — nothing sends (sequences queue silently) until it's raised in
+Apollo → **Settings → Email accounts / Mailboxes → (mailbox) → sending limits**. Check it
+via `GET /email_accounts` before debugging "why isn't my sequence sending".
+
 ---
 
 ## Usage & rate limits — `GET /usage_stats/api_usage_stats`
