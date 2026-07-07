@@ -122,9 +122,18 @@ These are how the hosted connector drives the *engagement/delivery* layer.
 | `POST /contacts`, `/contacts/search` | ✅ open |
 | `POST /emailer_campaigns/{id}/add_contact_ids` | ✅ open |
 | `POST /emailer_messages` (one-off send) | ✅ open (422 param validation reached, not 403) |
+| `POST /emailer_messages/{id}/send_now` | ✅ open — fires a drafted message (`drafted` → `scheduled`) |
+| `GET /emailer_messages/{id}` / `…/email_send_status` | ❌ 403 API_INACCESSIBLE (check delivery in UI / Gmail Sent) |
 | `POST /emailer_campaigns` (create) / `PUT …/update` | ❌ 403 API_INACCESSIBLE (use hosted connector/UI) |
 | `GET /emailer_campaigns/{id}` (show) | ❌ 403 API_INACCESSIBLE |
 | `PUT/PATCH /email_accounts/{id}` (update mailbox) | ❌ 403 API_INACCESSIBLE |
+
+**One-off send flow that works with an API key** (no connector, no sequence):
+`POST /contacts` (get `contact_id`) → `POST /emailer_messages` with
+`{contact_id, email_account_id, subject, body_text}` → returns `status: "drafted"` →
+`POST /emailer_messages/{id}/send_now` → `status: "scheduled"` (Apollo sends via the
+connected mailbox). This is how to send *personalized per-lead copy* when
+`emailer_campaigns` create/update is plan-gated.
 
 **Mailbox daily send limit (`email_daily_threshold`) is UI-only.** A freshly connected
 mailbox starts at `0` — nothing sends (sequences queue silently) until it's raised in
