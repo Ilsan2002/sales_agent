@@ -130,10 +130,17 @@ These are how the hosted connector drives the *engagement/delivery* layer.
 
 **One-off send flow that works with an API key** (no connector, no sequence):
 `POST /contacts` (get `contact_id`) → `POST /emailer_messages` with
-`{contact_id, email_account_id, subject, body_text}` → returns `status: "drafted"` →
+`{contact_id, email_account_id, subject, body_html}` → returns `status: "drafted"` →
 `POST /emailer_messages/{id}/send_now` → `status: "scheduled"` (Apollo sends via the
 connected mailbox). This is how to send *personalized per-lead copy* when
 `emailer_campaigns` create/update is plan-gated.
+
+⚠️ **The body MUST be `body_html`.** `body`, `body_text`, and `message` are **silently
+ignored** — create still returns 200/"drafted", but the draft contains only the account
+signature, and send_now will happily **send a blank email to a real prospect** (measured
+the hard way). Before calling send_now, ALWAYS check the echoed `emailer_message.body_text`
+in the create response contains your content; refuse to fire if it's empty. Draft cleanup
+via `DELETE /emailer_messages/{id}` is gated (404) — delete stray drafts in the UI.
 
 **Mailbox daily send limit (`email_daily_threshold`) is UI-only.** A freshly connected
 mailbox starts at `0` — nothing sends (sequences queue silently) until it's raised in
