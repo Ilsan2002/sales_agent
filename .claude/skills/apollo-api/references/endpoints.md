@@ -85,7 +85,16 @@ Returns firmographics: industry, `annual_revenue`, `estimated_num_employees`,
 `founded_year`, funding rounds, `primary_phone`, location, `technology_names[]`,
 `keywords[]`, headcount-growth (6/12/24-month), NAICS/SIC codes.
 
-**Bulk:** `POST /organizations/bulk_enrich` — up to 10 companies per call.
+⚠️ **`annual_revenue` is spotty for private firms and the *bulk* call drops it.**
+Measured on 11 private NY/NJ property-management firms: the single call returned
+revenue for 6/11; the **bulk** call (`/organizations/bulk_enrich`) returned
+`annual_revenue: null` for **all 11** even where the single call had it. When you
+need revenue, enrich **one domain at a time** — don't batch. And treat the number
+as a hint: two of nine populated figures were 10–50× low (a $2B-project developer
+came back as `$212K`). Verify revenue-gated segments against a second source.
+
+**Bulk:** `POST /organizations/bulk_enrich` — up to 10 companies per call. Fast for
+headcount/industry/phone, but **omits `annual_revenue`** (see warning above).
 
 ---
 

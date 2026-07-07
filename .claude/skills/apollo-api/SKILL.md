@@ -102,6 +102,9 @@ Search only needs a *master key*, not a higher tier.
 - **Build a list cheaply:** search (free for people) to gather candidates → enrich only
   the shortlist worth contacting; batch with the bulk endpoints (≤10/call).
 - **Account brief:** `search_organizations` → `enrich_organization` → `job_postings`.
+- **Need revenue? Enrich one org at a time.** `bulk_enrich` drops `annual_revenue`;
+  the single `/organizations/enrich` returns it. Even then Apollo has revenue for only
+  ~1/3 of private SMBs and is occasionally 10–50× off — verify revenue-gated segments.
 - **Don't re-pay:** cache every enrichment in Postgres (see `ARCHITECTURE.md`) keyed by
   Apollo `id`/domain so the same contact is never enriched twice.
 - **Protect deliverability:** Apollo's `email_status: "verified"` is a signal, not a
